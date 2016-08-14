@@ -137,6 +137,57 @@ bind__tsig_group_keys: []
 bind__tsig_host_keys: []
 
 
+bind__config_view_internal_base_zones:
+
+  - name: '.'
+    type: 'hint'
+    file: '/etc/bind/zones/db.root'
+
+  - name: 'localhost'
+    type: 'master'
+    file: '/etc/bind/zones/db.localhost'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+
+  - name: '127.in-addr.arpa'
+    type: 'master'
+    file: '/etc/bind/zones/db.127.in-addr.arpa'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+
+  - name: '0.in-addr.arpa'
+    type: 'master'
+    file: '/etc/bind/zones/db.0.in-addr.arpa'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+
+  - name: '255.in-addr.arpa'
+    type: 'master'
+    file: '/etc/bind/zones/db.255.in-addr.arpa'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+
+bind__config_view_internal_default_zones:
+
+  - name: 'drybjed1.net'
+    type: '{{ bind__type }}'
+    file: '/etc/bind/zones/db.drybjed1.net'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+    masters: '{{ ["master-karma"] if bind__type == "slave" else None }}'
+
+bind__config_view_internal_zones: []
+
+bind__config_view_external_base_zones:
+
+  - name: '.'
+    type: 'hint'
+    file: '/etc/bind/zones/db.root'
+
+bind__config_view_external_default_zones: []
+
+bind__config_view_external_zones: []
+
 bind__named_conf_default_includes:
   - 'keys'
   - 'trusted-keys'
@@ -153,6 +204,9 @@ bind__named_conf_default_acls:
 
   - name: 'trusted'
     list: [ 'localhost', 'localnets' ]
+
+  - name: 'untrusted'
+    list: [ '153.19.65.253', '172.16.44.114', '172.16.1.80' ]
 
   - name: 'the-raw'
     state: 'absent'
@@ -289,60 +343,41 @@ bind__named_conf_cymru_views:
 
   - name: 'internal-in'
     class: 'IN'
-    comment: 'Internal, trusted view'
-    match-clients: [ 'trusted' ]
+    comment:
+      - 'Our internal (trusted) view. We permit the internal networks'
+      - 'to freely access this view. We perform recursion for our'
+      - 'internal hosts, and retrieve data from the cache for them.'
+    match-clients: [ '!untrusted', 'trusted' ]
     recursion: True
     additional-from-auth: True
     additional-from-cache: True
     zone:
+      - '{{ bind__config_view_internal_base_zones }}'
+      - '{{ bind__config_view_internal_default_zones if bind__type == "master" else [] }}'
+      - '{{ bind__config_view_internal_zones }}'
 
-      - name: 'localhost'
-        type: 'master'
-        file: '/etc/bind/zones/db.localhost'
-        allow-query: [ 'any' ]
-        allow-transfer: [ 'none' ]
-
-      - name: '127.in-addr.arpa'
-        type: 'master'
-        file: '/etc/bind/zones/db.127.in-addr.arpa'
-        allow-query: [ 'any' ]
-        allow-transfer: [ 'none' ]
-
-      - name: '0.in-addr.arpa'
-        type: 'master'
-        file: '/etc/bind/zones/db.0.in-addr.arpa'
-        allow-query: [ 'any' ]
-        allow-transfer: [ 'none' ]
-
-      - name: '255.in-addr.arpa'
-        type: 'master'
-        file: '/etc/bind/zones/db.255.in-addr.arpa'
-        allow-query: [ 'any' ]
-        allow-transfer: [ 'none' ]
-
-      - name: 'drybjed1.net'
-        type: '{{ bind__type }}'
-        file: '/etc/bind/zones/db.drybjed1.net'
-        allow-query: [ 'any' ]
-        allow-transfer: [ 'none' ]
-        masters: '{{ ["master-karma"] if bind__type == "slave" else None }}'
 
   - name: 'external-in'
     class: 'IN'
-    comment: 'External, untrusted view'
+    comment:
+      - 'Our external (untrusted) view. We permit any client to access'
+      - 'portions of this view. We do not perform recursion or cache'
+      - 'access for hosts using this view.'
     match-clients: [ 'any' ]
     recursion: False
     additional-from-auth: False
     additional-from-cache: False
     zone:
-
-      - name: '.'
-        type: 'hint'
-        file: '/etc/bind/zones/db.root'
+      - '{{ bind__config_view_external_base_zones }}'
+      - '{{ bind__config_view_external_default_zones if bind__type == "master" else [] }}'
+      - '{{ bind__config_view_external_zones }}'
 
   - name: 'external-chaos'
     class: 'CHAOS'
-    comment: 'Secure BIND version information'
+    comment:
+      - 'Create a view for all clients perusing the CHAOS class.'
+      - 'We allow internal hosts to query our version number.'
+      - 'This is a good idea from a support point of view.'
     match-clients: [ 'any' ]
     recursion: False
     zone:

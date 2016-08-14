@@ -52,18 +52,22 @@
 {%     endfor %}
 {%   elif prefix|d() and configuration is iterable and configuration is not string and configuration is not mapping %}
 {%     for thing in configuration %}
-{%       if thing|d() and thing is mapping %}
-{%         if thing.state|d('present') != 'absent' %}
-{%           if thing.comment|d() %}
-{{ thing.comment | comment(prefix='', postfix='') -}}
-{%           endif %}
-{%           if output_type == 'category' %}
+{%       if thing|d() %}
+{%         if thing is mapping %}
+{%           if thing.state|d('present') != 'absent' %}
+{%             if thing.comment|d() %}
+{{ (thing.comment if thing.comment is string else thing.comment | join('\n')) | comment(prefix='', postfix='') -}}
+{%             endif %}
+{%             if output_type == 'category' %}
 {{ "%s %-16s { %s; };" | format(prefix, thing.name + ((' ' + thing.class) if thing.class|d() else ''), (([ thing.list ] if thing.list is string else thing.list) | join('; '))) }}
-{%           else %}
+{%             else %}
 {{ prefix }} "{{ thing.name }}"{{ (' ' + thing.class) if thing.class|d() else '' }} {{ '{' }}
 {{ named_conf(thing, prefix, quoted_strings_add=quoted_strings_add) | indent(8, true) }}
 };
-{%         endif %}
+{%             endif %}
+{%           endif %}
+{%         elif thing is iterable and thing is not string and thing is not mapping %}
+{{ named_conf(thing, prefix, quoted_strings_add=quoted_strings_add) -}}
 {%         endif %}
 {%       endif %}
 {%     endfor %}

@@ -2,6 +2,12 @@
 // {{ ansible_managed }}
 
 // vim:ft=named
+
+// Server type: {{ bind__type }}
+
+{% if (bind__named_conf_default_acls + bind__named_conf_acls) %}
+{{ print.named_conf((bind__named_conf_default_acls + bind__named_conf_acls), prefix='acl') }}
+{% endif %}
 {% if bind__named_conf_masters %}
 {{ print.named_conf(bind__named_conf_masters, prefix='masters') }}
 {% endif %}

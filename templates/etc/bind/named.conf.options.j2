@@ -3,9 +3,8 @@
 
 // vim:ft=named
 
-{% if (bind__named_conf_default_acls + bind__named_conf_acls) %}
-{{ print.named_conf((bind__named_conf_default_acls + bind__named_conf_acls), prefix='acl') }}
-{% endif %}
+// Server type: {{ bind__type }}
+
 {% if (bind__named_conf_default_logging_channels + bind__named_conf_logging_channels + bind__named_conf_default_logging_categories + bind__named_conf_logging_categories) %}
 logging {
 {{ print.named_conf((bind__named_conf_default_logging_channels + bind__named_conf_logging_channels), prefix='channel') | indent(8, true) }}
