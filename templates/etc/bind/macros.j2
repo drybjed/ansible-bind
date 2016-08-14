@@ -1,0 +1,71 @@
+{% macro named_conf(configuration, prefix='', quoted_strings_add=[], output_type='') %}
+{%   set quoted_strings_list = (bind__var_named_conf_quoted_strings_map['default'] + quoted_strings_add) %}
+{%   if configuration is mapping %}
+{%     for config_key in configuration.keys() | sort %}
+{%       if config_key not in [ 'name', 'class', 'state', 'comment', 'list', 'raw' ] %}
+{%         if configuration[config_key] is string %}
+{%           if configuration[config_key]|d() %}
+{%             if config_key in quoted_strings_list %}
+{%               if config_key in bind__var_named_conf_list_of_specials and configuration[config_key] in [ 'none', 'hostname' ] %}
+{{ config_key }} {{ configuration[config_key] }};
+{%               else %}
+{{ config_key }} "{{ configuration[config_key] }}";
+{%               endif %}
+{%             else %}
+{{ config_key }} {{ configuration[config_key] }};
+{%             endif %}
+{%           endif %}
+{%         elif configuration[config_key] | bool and configuration[config_key] is not iterable %}
+{{ config_key }} yes;
+{%         elif not configuration[config_key] | bool and configuration[config_key] is not iterable %}
+{%           if configuration[config_key] is not none %}
+{%             if configuration[config_key] | int %}
+{{ config_key }} {{ configuration[config_key] }};
+{%             else %}
+{{ config_key }} no;
+{%             endif %}
+{%           endif %}
+{%         elif configuration[config_key] is iterable and configuration[config_key] is not string and configuration[config_key] is not mapping %}
+{%           if configuration[config_key]|d() %}
+{%             if config_key in bind__var_named_conf_list_of_maps %}
+{{ named_conf(configuration[config_key], prefix=config_key, quoted_strings_add=bind__var_named_conf_quoted_strings_map[config_key]|d([])) -}}
+{%             else %}
+{%               if configuration[config_key] | length <= 2 %}
+{{ config_key }} {{ '{' }} {{ configuration[config_key] | join('; ') }}; {{ '}' }};
+{%               else %}
+{{ config_key }} {{ '{' }}
+{%                 for thing in configuration[config_key] %}
+{{ thing | indent(8, true) }};
+{%                 endfor %}
+};
+{%               endif %}
+{%             endif %}
+{%           endif %}
+{%         endif %}
+{%       elif config_key == 'list' %}
+{%         for thing in ([ configuration[config_key] ] if configuration[config_key] is string else configuration[config_key]) %}
+{{ thing }};
+{%         endfor %}
+{%       elif config_key == 'raw' %}
+{{ configuration[config_key] -}}
+{%       endif %}
+{%     endfor %}
+{%   elif prefix|d() and configuration is iterable and configuration is not string and configuration is not mapping %}
+{%     for thing in configuration %}
+{%       if thing|d() and thing is mapping %}
+{%         if thing.state|d('present') != 'absent' %}
+{%           if thing.comment|d() %}
+{{ thing.comment | comment(prefix='', postfix='') -}}
+{%           endif %}
+{%           if output_type == 'category' %}
+{{ "%s %-16s { %s; };" | format(prefix, thing.name + ((' ' + thing.class) if thing.class|d() else ''), (([ thing.list ] if thing.list is string else thing.list) | join('; '))) }}
+{%           else %}
+{{ prefix }} "{{ thing.name }}"{{ (' ' + thing.class) if thing.class|d() else '' }} {{ '{' }}
+{{ named_conf(thing, prefix, quoted_strings_add=quoted_strings_add) | indent(8, true) }}
+};
+{%         endif %}
+{%         endif %}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endmacro %}

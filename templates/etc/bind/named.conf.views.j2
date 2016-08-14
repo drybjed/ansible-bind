@@ -1,0 +1,5 @@
+{% import 'macros.j2' as print with context %}
+// {{ ansible_managed }}
+
+// vim:ft=named
+{{ print.named_conf(bind__named_conf_default_views + bind__named_conf_cymru_views + bind__named_conf_views, prefix='view') }}

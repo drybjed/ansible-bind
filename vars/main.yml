@@ -1,0 +1,59 @@
+---
+
+bind__var_named_conf_list_of_maps:
+  - 'channel'
+  - 'dns64'
+  - 'key'
+  - 'zone'
+
+bind__var_named_conf_quoted_strings_map:
+  'zone':
+    - 'file'
+    - 'journal'
+
+  'default':
+    - 'file'
+    - 'directory'
+    - 'dump-file'
+    - 'memstatistics-file'
+    - 'recursing-file'
+    - 'random-device'
+    - 'statistics-file'
+    - 'tkey-gssapi-credential'
+    - 'tkey-gssapi-keytab'
+    - 'tkey-domain'
+    - 'cache-file'
+    - 'root-delegation-only'
+    - 'root-delegation-only exclude'
+    - 'key-directory'
+    - 'managed-keys-directory'
+    - 'named-xfer'
+
+    # integer
+    - 'tkey-dhkey'
+
+    # hostname, none
+    - 'server-id'
+
+    # none
+    - 'hostname'
+    - 'pid-file'
+    - 'version'
+
+bind__var_named_conf_list_of_specials:
+  - 'hostname'
+  - 'pid-file'
+  - 'version'
+  - 'server-id'
+
+bind__var_named_conf_address_match_elements:
+  - 'allow-recursion'
+  - 'allow-recursion-on'
+  - 'sortlist'
+  - 'topology'
+  - 'allow-query'
+  - 'allow-query-on'
+  - 'allow-query-cache'
+  - 'allow-notify'
+  - 'blackhole'
+  - 'allow'

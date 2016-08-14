@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+
+# {{ ansible_managed }}
+
+from __future__ import print_function
+from json import dumps
+from sys import exit
+import os
+
+bind_etc_path = '/etc/bind'
+zone_sets = [ '{{ ([ bind__zone_sets ] if bind__zone_sets is string else bind__zone_sets) | join("', '") }}' ]
+zone_filename_prefix = 'db.'
+
+output = { 'installed': 'true' }
+
+zone_sets_map = {}
+
+for zone_set in zone_sets:
+
+    zone_serial_map = {}
+
+    if os.path.isdir(bind_etc_path + '/' + zone_set):
+        for zone_file in os.listdir(bind_etc_path + '/' + zone_set):
+            if zone_file.startswith(zone_filename_prefix):
+
+                zone_name = zone_file[len(zone_filename_prefix):]
+
+                with open(bind_etc_path + '/' + zone_set + '/' + zone_file) as fd:
+                    for line in fd.readlines():
+                        if ';' in line.split() and 'serial' in line.lower().split():
+                            zone_serial_map.update({ zone_name: line.split()[0] })
+
+        zone_sets_map.update({ zone_set: zone_serial_map })
+
+output.update({ 'zone_sets': zone_sets_map })
+
+print(dumps(output, sort_keys=True, indent=2))

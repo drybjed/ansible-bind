@@ -1,0 +1,13 @@
+// {{ ansible_managed }}
+
+// vim:ft=named
+
+// Server type: {{ bind__type }}
+
+{% for element in (bind__named_conf_default_includes + bind__named_conf_includes) %}
+{%   if '/' in element %}
+include "{{ element }}";
+{%   else %}
+include "/etc/bind/named.conf.{{ element }}";
+{%   endif %}
+{% endfor %}

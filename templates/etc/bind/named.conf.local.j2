@@ -1,0 +1,12 @@
+{% import 'macros.j2' as print with context %}
+// {{ ansible_managed }}
+
+// vim:ft=named
+{% if bind__named_conf_masters %}
+{{ print.named_conf(bind__named_conf_masters, prefix='masters') }}
+{% endif %}
+{% if bind__named_conf_combined_views %}
+{{ print.named_conf(bind__named_conf_combined_views, prefix='view') }}
+{% elif bind__named_conf_combined_zones %}
+{{ print.named_conf(bind__named_conf_combined_zones, prefix='zone', quoted_strings_add=bind__var_named_conf_quoted_strings_map['zone']) }}
+{% endif %}

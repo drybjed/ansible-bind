@@ -1,0 +1,5 @@
+{% import 'macros.j2' as print with context %}
+// {{ ansible_managed }}
+
+// vim:ft=named
+{{ print.named_conf(bind__named_conf_default_zones + bind__named_conf_zones, prefix='zone', quoted_strings_add=bind__var_named_conf_quoted_strings_map['zone']) }}

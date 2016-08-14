@@ -1,0 +1,162 @@
+; {{ ansible_managed }}
+
+{% set bind__tpl_dns_record_types = [
+  'A', 'AAAA', 'AFSDB', 'APL', 'CAA', 'CDNSKEY', 'CDS',
+  'CERT', 'CNAME', 'DHCID', 'DLV', 'DNAME', 'DNSKEY', 'DS',
+  'HIP', 'IPSECKEY', 'KEY', 'KX', 'LOC', 'MX', 'NAPTR', 'NS',
+  'NSEC', 'NSEC3', 'NSEC3PARAM', 'PTR', 'RRSIG', 'RP', 'SIG',
+  'SOA', 'SRV', 'SSHFP', 'TA', 'TKEY', 'TLSA', 'TSIG', 'TXT', 'URI' ] %}
+{% macro print_rr(record) %}
+{%   if record|d() and record is mapping and record.state|d('present') != 'absent' %}
+{%     set record_entry = { "name": record.name|d(""), "ttl": record.ttl|d(""), "class": record.class|d(""), "type": record.type|d(""), "data": record.data|d("")} %}
+{%     for key in record.keys() %}
+{%       set _ = record_entry.update({ key: record[key] }) %}
+{%     endfor %}
+{%     if record_entry.comment|d() %}
+{{ (record_entry.comment if record_entry.comment is string else record_entry.comment | join('\n')) | comment(decoration='; ', prefix='', postfix='') -}}{% endif %}
+{%     if record_entry.directive|d() %}
+{{ record_entry.directive }}
+{%     elif record_entry.raw|d() %}
+{{ record_entry.raw }}
+{%     elif record_entry.type|d() %}
+{%       if record_entry.type == 'SOA' %}
+{{ "%-4s %s %s %-4s %s %s (\n%30s   ; serial\n%30s   ; refresh\n%30s   ; retry\n%30s   ; expire\n%30s ) ; negttl" | format(record_entry.name, record_entry.ttl, record_entry.class, record_entry.type, record_entry.primary_ns, record_entry.email, record_entry.serial, record_entry.refresh, record_entry.retry, record_entry.expire, record_entry.negttl) }}
+{%       elif record_entry.type in [ 'MX' ] %}
+{%         if record_entry.priority|d() %}
+{{ "%-20s %s %-4s %-6s %-4s %s" | format(record_entry.name, record_entry.ttl, record_entry.class, record_entry.type, record_entry.priority, record_entry.data) }}
+{%         else %}
+{{ "%-20s %s %-4s %-6s %s" | format(record_entry.name, record_entry.ttl, record_entry.class, record_entry.type, record_entry.data) }}
+{%         endif %}
+{%       elif record_entry.type in [ 'SRV' ] %}
+{{ "%-20s %s %-4s %-4s %s" | format(record_entry.name, record_entry.ttl, record_entry.class, record_entry.type, record_entry.data) }}
+{%       elif record_entry.type in [ 'A', 'AAAA', 'CNAME', 'NS', 'PTR' ] %}
+{{ "%-20s %s %-4s %-6s %s" | format(record_entry.name, record_entry.ttl, record_entry.class, record_entry.type, record_entry.data) }}
+{%       elif record_entry.type in [ 'TXT' ] %}
+{{ "%-20s %s %-4s %-4s \"%s\"" | format(record_entry.name, record_entry.ttl, record_entry.class, record_entry.type, record_entry.data) }}
+{%       else %}
+{{ "%-20s %s %-4s %-8s %s" | format(record_entry.name, record_entry.ttl, record_entry.class, record_entry.type, record_entry.data) }}
+{%       endif %}
+{%     endif %}
+{%   endif %}
+{% endmacro %}
+{% macro process_records(data) %}
+{%   set output_list = [] %}
+{%   for element in data %}
+{%     if element|d() and element is mapping %}
+{%       set output = { "name": element.name|d(""), "ttl": element.ttl|d(""), "class": element.class|d(""), "type": "", "data": ""} %}
+{%       if element.type|d() %}
+{%         set _ = output.update({ "type": element.type }) %}
+{%       else %}
+{%         for key in element.keys() %}
+{%           if key in bind__tpl_dns_record_types %}
+{%             set _ = output.update({ "type": key }) %}
+{%           endif %}
+{%         endfor %}
+{%       endif %}
+{%       if element.data|d() %}
+{%         set _ = output.update({ "data": element.data }) %}
+{%       else %}
+{%         if output['type'] in element.keys() %}
+{%           set _ = output.update({ "data": element[output['type']] }) %}
+{%         endif %}
+{%       endif %}
+{%     endif %}
+{%     for key in element.keys() %}
+{%       if key not in ([ 'name', 'ttl', 'class', 'type', 'data' ] + bind__tpl_dns_record_types) %}
+{%         set _ = output.update({ key: element[key] }) %}
+{%       endif %}
+{%     endfor %}
+{%     if output|d() %}
+{%       set _ = output_list.append(output) %}
+{%     endif %}
+{%   endfor %}
+{{ output_list | to_nice_yaml }}
+{% endmacro %}
+{# =================================== #}
+{% set bind__tpl_zone_set = item.zone_set | d('zones') %}
+{% if (ansible_local|d() and ansible_local.bind|d() and ansible_local.bind.zone_sets|d() and
+       ansible_local.bind.zone_sets[bind__tpl_zone_set]|d() and
+       ansible_local.bind.zone_sets[bind__tpl_zone_set][item.name]|d()) %}
+{%   set bind__tpl_zone_serial = ansible_local.bind.zone_sets[bind__tpl_zone_set][item.name] %}
+{% else %}
+{%   set bind__tpl_zone_serial = item.serial | d(bind__serial) %}
+{% endif %}
+{% if item.comment|d() %}
+{{ (item.comment if item.comment is string else item.comment | join('\n')) | comment(decoration='; ', prefix='', postfix='') -}}{% endif %}
+{% if item.raw|d() %}
+{{ item.raw }}
+{% else %}
+{%   if item.raw_header|d() %}
+{{ item.raw_header }}
+{%   elif (item.no_header is undefined or not item.no_header | bool) %}
+{{ print_rr({ "directive": "$TTL " + item.ttl | d('2h') }) -}}
+{{ print_rr({
+  "name":       item.soa_name   | d('@'),
+  "class":      item.class      | d('IN'),
+  "type":       "SOA",
+  "primary_ns": item.primary_ns | d('ns.' + item.name + '.'),
+  "email":      ((item.email    | d('hostmaster@' + item.name) + '.') | replace('@', '.')),
+  "serial":     bind__tpl_zone_serial,
+  "refresh":    item.refresh    | d('1h'),
+  "retry":      item.retry      | d('15m'),
+  "expire":     item.expire     | d('2w'),
+  "negttl":     item.negttl     | d('10m')
+}) -}}
+{%   endif %}
+{%   if (item.ns_records|d([])) %}
+
+{%     for record in process_records(item.ns_records|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{%   if (item.mx_records|d([])) %}
+
+{%     for record in process_records(item.mx_records|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{%   if (item.host_records|d([])) %}
+
+{%     for record in process_records(item.host_records|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{%   if (item.base_records|d([]) + item.primary_records|d([])) %}
+
+{%     for record in process_records(item.base_records|d([]) + item.primary_records|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{%   if (item.txt_records|d([])) %}
+
+{%     for record in process_records(item.txt_records|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{%   if (item.records|d([])) %}
+
+{%     for record in process_records(item.records|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{%   if (item.end_records|d([])) %}
+
+{%     for record in process_records(item.end_records|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endif %}

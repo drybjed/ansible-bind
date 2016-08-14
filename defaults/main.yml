@@ -1,0 +1,399 @@
+---
+
+bind__inventory_hosts: '{{ groups.debops_test_bind }}'
+
+bind__master: '{{ bind__inventory_hosts[0] }}'
+
+bind__type: '{{ "master"
+                if (inventory_hostname == bind__master)
+                else "slave" }}'
+
+bind__serial: '{{ ansible_date_time.year + ansible_date_time.month +
+                  ansible_date_time.day + "00" }}'
+
+bind__base_packages: [ 'bind9', 'bind9-host', 'dnsutils' ]
+
+bind__packages: []
+
+bind__zone_sets: [ 'zones' ]
+
+bind__fqdn: '{{ ansible_fqdn }}'
+
+bind__domain: '{{ ansible_domain if ansible_domain else ansible_hostname }}'
+
+bind__rdns_ipv4_default_zones: '{{ lookup("template", "lookup/bind__rdns_ipv4_default_zones.j2") | from_yaml }}'
+
+bind__rdns_ipv4_default_subnets: [ '{{ (ansible_default_ipv4.network + "/" + ansible_default_ipv4.netmask) | ipaddr("cidr") }}' ]
+
+bind__rdns_ipv4_subnets: [ '192.168.1.0/24' ]
+
+bind__rdns_ipv4_combined_subnets: '{{ bind__rdns_ipv4_default_subnets
+                                      + bind__rdns_ipv4_subnets }}'
+
+#bind__rdns_ipv4_serial: '{{ bind__serial }}'
+
+bind__rdns_ipv4_default_config:
+  #serial: '{{ bind__rdns_ipv4_serial }}'
+  primary_ns: 'ns.{{ bind__domain }}.'
+  email: 'hostmaster@{{ bind__domain }}'
+  rdns_ptr_domain: '{{ bind__domain }}'
+  rdns_ptr_prefix: 'host-'
+  ns_records:
+    - NS: 'ns.{{ bind__domain }}.'
+
+bind__rdns_ipv4_zone_config:
+  '32.16.172.in-addr.arpa':
+    primary_records:
+      - name: '22'
+        PTR: 'pyra.{{ bind__domain }}.'
+    records:
+      - name: '38'
+        PTR: 'oliwa.{{ bind__domain }}.'
+      - name: '39'
+        PTR: 'oliwa2.{{ bind__domain }}.'
+
+bind__dns_default_zones:
+  - '{{ bind__rdns_ipv4_default_zones if bind__type == "master" else {} }}'
+
+
+# http://www.cymru.com/Documents/secure-bind-template.html
+bind__dns_cymru_zones:
+
+  - name: 'bind'
+    serial: '2016081002'
+    class: 'CHAOS'
+    primary_ns: 'localhost.'
+    email: 'root@localhost'
+    ttl: '1d'
+    refresh: '6h'
+    negttl: '12h'
+    ns_records:
+      - class: 'CHAOS'
+        NS: 'localhost.'
+    records:
+      - name: 'version'
+        class: 'CHAOS'
+        TXT: '{{ bind__register_version.stdout }}'
+
+      - name: 'authors'
+        class: 'CHAOS'
+        TXT: 'Internet Systems Consortium'
+
+  - name: 'drybjed1.net'
+    comment:
+      - 'A domain of my own'
+      - 'It is mine, muhahaha'
+
+    ns_records:
+
+      - NS: 'ns'
+
+    mx_records:
+
+      - MX: 'mail'
+        priority: '10'
+
+      - comment: 'aaaaahhhhhhhaaaaaa'
+
+    base_records:
+
+      - A: '{{ ansible_default_ipv4.address }}'
+
+    records:
+
+      - name: 'ns'
+        A: '127.0.0.1'
+
+      - name: 'cornell'
+        A: '192.168.0.1'
+
+      - name: 'www'
+        CNAME: 'cornell'
+        comment: 'aaaaabdfg gfg dfgdfgdf'
+
+      - name: 'mail'
+        A: 192.168.38.9
+
+      - name: 'newmail'
+        A: 192.168.38.9
+
+bind__dns_zones: []
+
+
+bind__tsig_default_algorithm: 'hmac-sha256'
+
+bind__tsig_secret_path: '{{ secret + "/bind/tsig/" }}'
+bind__tsig_secret_length: '48'
+
+bind__tsig_master_slave_keys: '{{ lookup("template", "lookup/bind__tsig_master_slave_keys.j2") | from_yaml }}'
+
+bind__tsig_default_keys:
+  - '{{ bind__tsig_master_slave_keys }}'
+
+bind__tsig_keys: []
+
+bind__tsig_group_keys: []
+
+bind__tsig_host_keys: []
+
+
+bind__named_conf_default_includes:
+  - 'keys'
+  - 'trusted-keys'
+  - 'managed-keys'
+  - 'options'
+  - 'local'
+
+bind__named_conf_includes: []
+
+bind__named_conf_default_acls:
+
+  - name: 'xfer'
+    list: 'none'
+
+  - name: 'trusted'
+    list: [ 'localhost', 'localnets' ]
+
+  - name: 'the-raw'
+    state: 'absent'
+    raw: |
+      aaaa;
+      bbbb;
+
+bind__named_conf_acls: []
+
+bind__named_conf_keys: []
+
+bind__named_conf_masters:
+  - name: 'master-karma'
+    list: '{{ lookup("dig", "karma.{{ ansible_domain }}.") }}'
+
+bind__named_conf_servers: []
+
+bind__named_conf_trusted_keys: []
+
+bind__named_conf_managed_keys: []
+
+bind__named_conf_controls: []
+
+bind__named_conf_default_logging_channels:
+
+  - name: 'default_syslog'
+    syslog: 'local2'
+    severity: 'debug'
+
+  - name: 'audit_log'
+    file: '/var/log/named.log'
+    severity: 'debug'
+    print-time: True
+
+bind__named_conf_logging_channels: []
+
+bind__named_conf_default_logging_categories:
+
+  - name: 'bogusbogusaaaaaaaaaaaaaaaaaaaaaaaaa'
+    comment: 'aaaa'
+    list: 'audit_log'
+    state: 'absent'
+
+  - name: 'default'
+    list: 'default_syslog'
+
+  - name: 'general'
+    list: 'default_syslog'
+
+  - name: 'security'
+    list: [ 'audit_log', 'default_syslog' ]
+
+  - name: 'config'
+    list: 'default_syslog'
+
+  - name: 'resolver'
+    list: 'audit_log'
+
+  - name: 'xfer-in'
+    list: 'audit_log'
+
+  - name: 'xfer-out'
+    list: 'audit_log'
+
+  - name: 'notify'
+    list: 'audit_log'
+
+  - name: 'client'
+    list: 'audit_log'
+
+  - name: 'network'
+    list: 'audit_log'
+
+  - name: 'update'
+    list: 'audit_log'
+
+  - name: 'queries'
+    list: 'audit_log'
+
+  - name: 'lame-servers'
+    list: 'audit_log'
+
+bind__named_conf_logging_categories: []
+
+bind__named_conf_lwres: []
+
+bind__named_conf_default_options:
+  directory: '/var/cache/bind'
+  forwarders: [ '172.16.32.1' ]
+  dnssec-validation: 'auto'
+  auth-nxdomain: False
+  listen-on-v6: [ 'any' ]
+  #var-none: '{{ 111222 if ansible_hostname == "akarma" else None }}'
+  #bool-true: True
+  #bool-false: False
+  #string-true: 'true'
+  #string-false: 'false'
+  #string-True: 'True'
+  #string-False: 'False'
+  #number: 1234
+  #empty-list: []
+  #empty-string: ''
+  #empty-var:
+  #long-list: [ '1', '2', '3', '4' ]
+  #mapping-dict: { key-var: some-value, key-string: 'string-value', key-number: 123456, key-bool: True }
+#  zone:
+#    - { class: IN, name: 'some-stuff', key-string: 'True', comment: 'aa bbb' }
+#    - { name: other-stuff, key-string: 'False' }
+#    - { key-var: some-value, key-string: 'string-value' }
+#    - { key-number: 123456, key-bool: True }
+
+bind__named_conf_cymru_options:
+  statistics-file: 'named.stats'
+  memstatistics-file: 'named.memstats'
+  zone-statistics: True
+  notify: False
+  transfer-format: 'many-answers'
+  max-transfer-time-in: '60'
+  interface-interval: '0'
+  allow-transfer: [ 'xfer' ]
+  allow-query: [ 'trusted' ]
+  allow-query-cache: [ 'trusted' ]
+
+bind__named_conf_options: {}
+
+
+bind__named_conf_combined_options: '{{ bind__named_conf_default_options
+                                       | combine(bind__named_conf_cymru_options
+                                         | combine(bind__named_conf_options)) }}'
+
+bind__named_conf_default_views: []
+
+bind__named_conf_cymru_views:
+
+  - name: 'internal-in'
+    class: 'IN'
+    comment: 'Internal, trusted view'
+    match-clients: [ 'trusted' ]
+    recursion: True
+    additional-from-auth: True
+    additional-from-cache: True
+    zone:
+
+      - name: 'localhost'
+        type: 'master'
+        file: '/etc/bind/zones/db.localhost'
+        allow-query: [ 'any' ]
+        allow-transfer: [ 'none' ]
+
+      - name: '127.in-addr.arpa'
+        type: 'master'
+        file: '/etc/bind/zones/db.127.in-addr.arpa'
+        allow-query: [ 'any' ]
+        allow-transfer: [ 'none' ]
+
+      - name: '0.in-addr.arpa'
+        type: 'master'
+        file: '/etc/bind/zones/db.0.in-addr.arpa'
+        allow-query: [ 'any' ]
+        allow-transfer: [ 'none' ]
+
+      - name: '255.in-addr.arpa'
+        type: 'master'
+        file: '/etc/bind/zones/db.255.in-addr.arpa'
+        allow-query: [ 'any' ]
+        allow-transfer: [ 'none' ]
+
+      - name: 'drybjed1.net'
+        type: '{{ bind__type }}'
+        file: '/etc/bind/zones/db.drybjed1.net'
+        allow-query: [ 'any' ]
+        allow-transfer: [ 'none' ]
+        masters: '{{ ["master-karma"] if bind__type == "slave" else None }}'
+
+  - name: 'external-in'
+    class: 'IN'
+    comment: 'External, untrusted view'
+    match-clients: [ 'any' ]
+    recursion: False
+    additional-from-auth: False
+    additional-from-cache: False
+    zone:
+
+      - name: '.'
+        type: 'hint'
+        file: '/etc/bind/zones/db.root'
+
+  - name: 'external-chaos'
+    class: 'CHAOS'
+    comment: 'Secure BIND version information'
+    match-clients: [ 'any' ]
+    recursion: False
+    zone:
+
+      - name: '.'
+        type: 'hint'
+        file: '/dev/null'
+
+      - name: 'bind'
+        type: 'master'
+        file: '/etc/bind/zones/db.bind'
+        allow-query: [ 'trusted' ]
+        allow-transfer: [ 'none' ]
+
+bind__named_conf_views: []
+
+bind__named_conf_combined_views: '{{ bind__named_conf_default_views
+                                     + bind__named_conf_cymru_views
+                                     + bind__named_conf_views }}'
+
+bind__named_conf_default_zones: []
+
+bind__named_conf_zones: []
+
+bind__named_conf_combined_zones: '{{ bind__named_conf_default_zones
+                                     + bind__named_conf_zones }}'
+
+bind__allow: []
+
+bind__logrotate__dependent_config:
+
+  - filename: 'bind9'
+    logs: '/var/log/named.log'
+    options: |
+      rotate 4
+      weekly
+      create
+      notifempty
+      compress
+      delaycompress
+
+bind__etc_services__dependent_list:
+
+  - name: 'named-rndc'
+    port: '953'
+    comment: 'BIND9 control port'
+
+bind__ferm__dependent_rules:
+
+  - type: 'accept'
+    protocol: [ 'tcp', 'udp' ]
+    dport: [ 'domain' ]
+    saddr: '{{ bind__allow }}'
+    role: 'debops.bind'

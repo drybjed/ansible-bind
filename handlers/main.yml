@@ -1,0 +1,14 @@
+---
+
+- name: Check BIND configuration and reload
+  command: named-checkconf
+  notify: [ 'Check BIND zones and reload' ]
+
+- name: Check BIND zones and reload
+  command: named-checkconf -z
+  notify: [ 'Reload bind9' ]
+
+- name: Reload bind9
+  service:
+    name: 'bind9'
+    state: 'reloaded'

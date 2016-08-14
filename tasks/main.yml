@@ -1,0 +1,126 @@
+---
+
+- name: Install required packages
+  package:
+    name: '{{ item }}'
+    state: 'present'
+  with_flattened:
+    - '{{ bind__base_packages }}'
+    - '{{ bind__packages }}'
+  register: bind__register_install
+
+- name: Check BIND version
+  command: named -v
+  register: bind__register_version
+  changed_when: False
+
+- name: Check current config file diversions
+  environment:
+    LC_ALL: 'C'
+  shell: dpkg-divert --list '/etc/bind/*.dpkg-divert' | awk '{print $NF}'
+  register: bind__register_diversions
+  always_run: True
+  changed_when: False
+
+- name: Divert the default configuration files
+  command: dpkg-divert --quiet --local --divert /etc/bind/{{ item }}.dpkg-divert --rename /etc/bind/{{ item }}
+  with_items: [ 'named.conf', 'named.conf.options', 'named.conf.local' ]
+  when: ('/etc/bind/' + item + '.dpkg-divert' not in bind__register_diversions.stdout_lines)
+
+- name: Make sure that named.log file exists
+  file:
+    path: '/var/log/named.log'
+    state: '{{ "touch" if bind__register_install|changed else "file" }}'
+    owner: 'root'
+    group: 'bind'
+    mode: '0660'
+
+- name: Create static zone directory
+  file:
+    path: '/etc/bind/{{ item }}'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  with_items: '{{ bind__zone_sets }}'
+
+- name: Symlink Debian zone files to zones/ dir
+  file:
+    path: '{{ item.path }}'
+    src: '{{ item.src }}'
+    state: 'link'
+  with_items:
+    - { path: '/etc/bind/zones/db.root',             src: '../db.root'  }
+    - { path: '/etc/bind/zones/db.empty',            src: '../db.empty' }
+    - { path: '/etc/bind/zones/db.localhost',        src: '../db.local' }
+    - { path: '/etc/bind/zones/db.0.in-addr.arpa',   src: '../db.0'     }
+    - { path: '/etc/bind/zones/db.127.in-addr.arpa', src: '../db.127'   }
+    - { path: '/etc/bind/zones/db.255.in-addr.arpa', src: '../db.255'   }
+
+- name: Generate BIND public configuration files
+  template:
+    src: 'etc/bind/{{ item }}.j2'
+    dest: '/etc/bind/{{ item }}'
+    owner: 'root'
+    group: 'bind'
+    mode: '0644'
+  with_items: [ 'named.conf', 'named.conf.options', 'named.conf.local' ]
+  notify: [ 'Check BIND configuration and reload' ]
+
+- name: Generate BIND private configuration files
+  template:
+    src: 'etc/bind/{{ item }}.j2'
+    dest: '/etc/bind/{{ item }}'
+    owner: 'root'
+    group: 'bind'
+    mode: '0640'
+  with_items: [ 'named.conf.keys', 'named.conf.trusted-keys', 'named.conf.managed-keys' ]
+  notify: [ 'Check BIND configuration and reload' ]
+
+- name: Remove static DNS zone files if requested
+  file:
+    path: '/etc/bind/{{ item.zone_set | d("zones") }}/{{ item.filename | d("db." + item.name) }}'
+    state: 'absent'
+  with_flattened:
+    - '{{ bind__dns_default_zones }}'
+    - '{{ bind__dns_cymru_zones }}'
+    - '{{ bind__dns_zones }}'
+  when: item.name|d() and item.state|d() and item.state == 'absent'
+  notify: [ 'Check BIND zones and reload' ]
+
+- name: Generate static DNS zone files
+  template:
+    src: 'etc/bind/zones/db.zone.j2'
+    dest: '/etc/bind/{{ item.zone_set | d("zones") }}/{{ item.filename | d("db." + item.name) }}'
+    owner: 'root'
+    group: 'bind'
+    mode: '0644'
+  with_flattened:
+    - '{{ bind__dns_default_zones }}'
+    - '{{ bind__dns_cymru_zones }}'
+    - '{{ bind__dns_zones }}'
+  when: item.name|d() and item.state|d('present') != 'absent'
+  register: bind__register_zone_files
+  notify: [ 'Check BIND zones and reload' ]
+
+- name: Increment serial in changed static zone files
+  script: 'script/bind-increment-serial.sh {{ item.dest }}'
+  with_items: '{{ bind__register_zone_files.results }}'
+  when: item.changed|bool
+  notify: [ 'Check BIND zones and reload' ]
+
+- name: Make sure Ansible local facts directory exists
+  file:
+    path: '/etc/ansible/facts.d'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
+- name: Save BIND local facts
+  template:
+    src: 'etc/ansible/facts.d/bind.fact.j2'
+    dest: '/etc/ansible/facts.d/bind.fact'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'

@@ -1,0 +1,21 @@
+{% set output = [] %}
+{% for entry in ([ bind__rdns_ipv4_combined_subnets ] if bind__rdns_ipv4_combined_subnets is string else bind__rdns_ipv4_combined_subnets) %}
+{%   for i in range(0, (entry | ipsubnet("24")|int)) %}
+{%     set zone_data = {} %}
+{%     set host_ptr_name = ((entry | ipsubnet('24', i) | ipaddr('network')).split('.')[:-1] | join('.') | replace('.','-')) %}
+{%     set revdns_record = ((entry | ipsubnet('24', i) | ipaddr('revdns')).split('.')[1:-1] | join('.')) %}
+{%     set _ = zone_data.update({ "name": revdns_record }) %}
+{%     for key in bind__rdns_ipv4_default_config.keys() %}
+{%       set _ = zone_data.update({ key: bind__rdns_ipv4_default_config[key] }) %}
+{%     endfor %}
+{%     if bind__rdns_ipv4_zone_config[revdns_record]|d() %}
+{%       for key in bind__rdns_ipv4_zone_config[revdns_record].keys() %}
+{%         set _ = zone_data.update({ key: bind__rdns_ipv4_zone_config[revdns_record][key] }) %}
+{%       endfor %}
+{%     endif %}
+{%     set generate_ptr_record = { 'directive': '$GENERATE 0-255 $ PTR ' + (zone_data.rdns_ptr_prefix | d('pc-')) + host_ptr_name + '-$.' + zone_data.rdns_ptr_domain + "." } %}
+{%     set _ = zone_data.update({ "end_records": [ generate_ptr_record ] }) %}
+{%     set _ = output.append(zone_data) %}
+{%   endfor %}
+{% endfor %}
+{{ output | to_nice_yaml }}

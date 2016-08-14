@@ -1,0 +1,28 @@
+// {{ ansible_managed }}
+
+// vim:ft=named
+
+{% macro print_key(key_map) %}
+{% if key_map.comment|d() %}
+{{ key_map.comment | comment(prefix='', postfix='') -}}{% endif %}
+key {{ key_map.name }} {
+    algorithm {{ key_map.algorithm }};
+    secret {{ key_map.secret }};
+};
+{% endmacro %}
+{% macro process_keys(element) %}
+{%   if element|d() and element is mapping %}
+{%     set key_params = {
+  "name": element.name,
+  "comment": element.comment|d(),
+  "algorithm": (element.algorithm | d(element.algo | d(bind__tsig_default_algorithm))),
+  "secret": (element.secret_raw | d((element.secret | d(lookup("password", bind__tsig_secret_path + "/" + element.name + " length=" + bind__tsig_secret_length))) | b64encode))
+} %}
+{{ print_key(key_params) }}
+{%   elif element|d() and element is iterable and element is not string and element is not mapping %}
+{%     for thing in element %}
+{{ process_keys(thing) -}}
+{%     endfor %}
+{%   endif %}
+{% endmacro %}
+{{ process_keys(bind__tsig_default_keys + bind__tsig_keys + bind__tsig_group_keys + bind__tsig_host_keys) }}
