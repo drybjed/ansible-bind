@@ -3,12 +3,12 @@
 # {{ ansible_managed }}
 
 from __future__ import print_function
-from json import dumps
+from json import loads, dumps
 from sys import exit
 import os
 
-bind_etc_path = '/etc/bind'
-zone_sets = [ '{{ ([ bind__zone_sets ] if bind__zone_sets is string else bind__zone_sets) | join("', '") }}' ]
+bind_etc_zones_path = '/etc/bind/zones'
+zone_sets = loads('''{{ ([ bind__zone_sets ] if bind__zone_sets is string else bind__zone_sets) | to_nice_json }}''')
 zone_filename_prefix = 'db.'
 
 output = { 'installed': 'true' }
@@ -19,13 +19,13 @@ for zone_set in zone_sets:
 
     zone_serial_map = {}
 
-    if os.path.isdir(bind_etc_path + '/' + zone_set):
-        for zone_file in os.listdir(bind_etc_path + '/' + zone_set):
+    if os.path.isdir(bind_etc_zones_path + '/' + zone_set):
+        for zone_file in os.listdir(bind_etc_zones_path + '/' + zone_set):
             if zone_file.startswith(zone_filename_prefix):
 
                 zone_name = zone_file[len(zone_filename_prefix):]
 
-                with open(bind_etc_path + '/' + zone_set + '/' + zone_file) as fd:
+                with open(bind_etc_zones_path + '/' + zone_set + '/' + zone_file) as fd:
                     for line in fd.readlines():
                         if ';' in line.split() and 'serial' in line.lower().split():
                             zone_serial_map.update({ zone_name: line.split()[0] })

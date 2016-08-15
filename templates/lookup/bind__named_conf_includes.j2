@@ -1,0 +1,10 @@
+{% set output = [] %}
+{% set bind__tpl_etc = "/etc/bind" %}
+{% for element in bind__zone_sets %}
+{%   set _ = output.append(bind__tpl_etc + '/zones/' + element) %}
+{%   set _ = output.append(bind__tpl_etc + '/named.conf.d/zones/' + element) %}
+{% endfor %}
+{% set _ = output.append(bind__tpl_etc + '/named.conf.d/views') %}
+{% if output %}
+{{ output | to_nice_yaml }}
+{% endif %}

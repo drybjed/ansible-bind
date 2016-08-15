@@ -76,7 +76,7 @@
 {{ output_list | to_nice_yaml }}
 {% endmacro %}
 {# =================================== #}
-{% set bind__tpl_zone_set = item.zone_set | d('zones') %}
+{% set bind__tpl_zone_set = item.zone_set | d(bind__zone_sets[0]) %}
 {% if (ansible_local|d() and ansible_local.bind|d() and ansible_local.bind.zone_sets|d() and
        ansible_local.bind.zone_sets[bind__tpl_zone_set]|d() and
        ansible_local.bind.zone_sets[bind__tpl_zone_set][item.name]|d()) %}
@@ -89,6 +89,13 @@
 {% if item.raw|d() %}
 {{ item.raw }}
 {% else %}
+{%   if (item.pre_header|d([])) %}
+{%     for record in process_records(item.pre_header|d([])) | from_yaml %}
+{%       if record %}
+{{ print_rr(record) -}}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
 {%   if item.raw_header|d() %}
 {{ item.raw_header }}
 {%   elif (item.no_header is undefined or not item.no_header | bool) %}

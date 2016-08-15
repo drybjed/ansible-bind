@@ -15,7 +15,7 @@ bind__base_packages: [ 'bind9', 'bind9-host', 'dnsutils' ]
 
 bind__packages: []
 
-bind__zone_sets: [ 'zones' ]
+bind__zone_sets: [ 'default' ]
 
 bind__fqdn: '{{ ansible_fqdn }}'
 
@@ -52,12 +52,43 @@ bind__rdns_ipv4_zone_config:
       - name: '39'
         PTR: 'oliwa2.{{ bind__domain }}.'
 
+bind__dns_default_domain:
+  name: '{{ bind__domain }}'
+  primary_ns: 'ns.{{ bind__domain }}.'
+  email: 'hostmaster@{{ bind__domain }}'
+  ns_records:
+    - NS: 'ns.{{ bind__domain }}.'
+    - A: '{{ ansible_default_ipv4.address|d(None) }}'
+    - AAAA: '{{ ansible_default_ipv6.address|d(None) }}'
+  base_records:
+    - name: 'ns'
+      A: '{{ ansible_default_ipv4.address|d(None) }}'
+    - name: 'ns'
+      AAAA: '{{ ansible_default_ipv6.address|d(None) }}'
+  #primary_records: '{{ lookup("template", "lookup/bind__dns_default_domain_subnet_records.j2") }}'
+
+bind__dns_default_domain_ipv4_default_subnets: [ '{{ (ansible_default_ipv4.network + "/" + ansible_default_ipv4.netmask) | ipaddr("cidr") }}' ]
+
+bind__dns_default_domain_ipv4_subnets: [ '192.168.1.0/24' ]
+
+bind__dns_default_domain_ipv4_combined_subnets: '{{ bind__dns_default_domain_ipv4_default_subnets
+                                                    + bind__dns_default_domain_ipv4_subnets }}'
 bind__dns_default_zones:
   - '{{ bind__rdns_ipv4_default_zones if bind__type == "master" else {} }}'
+  - '{{ bind__dns_default_domain }}'
 
 
 # http://www.cymru.com/Documents/secure-bind-template.html
 bind__dns_cymru_zones:
+
+  - name: 'included-zone'
+    filename: 'included-zone.conf'
+    no_header: True
+    records:
+      - name: 'alpha'
+        A: '127.0.0.1'
+      - name: 'www'
+        CNAME: 'alpha'
 
   - name: 'bind'
     serial: '2016081002'
@@ -141,29 +172,29 @@ bind__config_view_internal_base_zones:
 
   - name: '.'
     type: 'hint'
-    file: '/etc/bind/zones/db.root'
+    file: '/etc/bind/zones/default/db.root'
 
   - name: 'localhost'
     type: 'master'
-    file: '/etc/bind/zones/db.localhost'
+    file: '/etc/bind/zones/default/db.localhost'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '127.in-addr.arpa'
     type: 'master'
-    file: '/etc/bind/zones/db.127.in-addr.arpa'
+    file: '/etc/bind/zones/default/db.127.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '0.in-addr.arpa'
     type: 'master'
-    file: '/etc/bind/zones/db.0.in-addr.arpa'
+    file: '/etc/bind/zones/default/db.0.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '255.in-addr.arpa'
     type: 'master'
-    file: '/etc/bind/zones/db.255.in-addr.arpa'
+    file: '/etc/bind/zones/default/db.255.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
@@ -171,7 +202,7 @@ bind__config_view_internal_default_zones:
 
   - name: 'drybjed1.net'
     type: '{{ bind__type }}'
-    file: '/etc/bind/zones/db.drybjed1.net'
+    file: '/etc/bind/zones/default/db.drybjed1.net'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
     masters: '{{ ["master-karma"] if bind__type == "slave" else None }}'
@@ -182,7 +213,7 @@ bind__config_view_external_base_zones:
 
   - name: '.'
     type: 'hint'
-    file: '/etc/bind/zones/db.root'
+    file: '/etc/bind/zones/default/db.root'
 
 bind__config_view_external_default_zones: []
 
@@ -310,13 +341,14 @@ bind__named_conf_default_options:
   #empty-list: []
   #empty-string: ''
   #empty-var:
-  #long-list: [ '1', '2', '3', '4' ]
+  #list-in-list: [ 'first-entry', 'second-entry', [ 'inside-list', 'second-inside' ] ]
+  #long-list: [ '1aaaaaa', '2bbbbbb', '3cccccc', '4dddddd' ]
   #mapping-dict: { key-var: some-value, key-string: 'string-value', key-number: 123456, key-bool: True }
-#  zone:
-#    - { class: IN, name: 'some-stuff', key-string: 'True', comment: 'aa bbb' }
-#    - { name: other-stuff, key-string: 'False' }
-#    - { key-var: some-value, key-string: 'string-value' }
-#    - { key-number: 123456, key-bool: True }
+  #zone:
+  #  - { class: IN, name: 'some-stuff', key-string: 'True', comment: 'aa bbb' }
+  #  - { name: other-stuff, key-string: 'False' }
+  #  - { key-var: some-value, key-string: 'string-value' }
+  #  - { key-number: 123456, key-bool: True }
 
 bind__named_conf_cymru_options:
   statistics-file: 'named.stats'
@@ -388,7 +420,7 @@ bind__named_conf_cymru_views:
 
       - name: 'bind'
         type: 'master'
-        file: '/etc/bind/zones/db.bind'
+        file: '/etc/bind/zones/default/db.bind'
         allow-query: [ 'trusted' ]
         allow-transfer: [ 'none' ]
 
@@ -398,7 +430,36 @@ bind__named_conf_combined_views: '{{ bind__named_conf_default_views
                                      + bind__named_conf_cymru_views
                                      + bind__named_conf_views }}'
 
-bind__named_conf_default_zones: []
+bind__named_conf_default_zones:
+
+  - name: '.'
+    filename: 'root'
+    type: 'hint'
+    #file: '/etc/bind/zones/default/db.root'
+
+  - name: 'localhost'
+    type: 'master'
+    #file: '/etc/bind/zones/default/db.localhost'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+
+  - name: '127.in-addr.arpa'
+    type: 'master'
+    #file: '/etc/bind/zones/default/db.127.in-addr.arpa'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+
+  - name: '0.in-addr.arpa'
+    type: 'master'
+    #file: '/etc/bind/zones/default/db.0.in-addr.arpa'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
+
+  - name: '255.in-addr.arpa'
+    type: 'master'
+    #file: '/etc/bind/zones/default/db.255.in-addr.arpa'
+    allow-query: [ 'any' ]
+    allow-transfer: [ 'none' ]
 
 bind__named_conf_zones: []
 

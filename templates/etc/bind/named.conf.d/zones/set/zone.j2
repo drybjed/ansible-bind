@@ -1,0 +1,13 @@
+{% import 'macros.j2' as print with context %}
+// {{ ansible_managed }}
+
+// vim:ft=named
+
+{% set zone_overrides = {} %}
+{% if not item.type|d() %}
+{%   set _ = zone_overrides.update({ "type": bind__type }) %}
+{% endif %}
+{% if (not item.file|d() and (item.type|d(bind__type) in [ 'master', 'hint' ])) %}
+{%   set _ = zone_overrides.update({ "file": ("/etc/bind/zones/" + item.zone_set | d(bind__zone_sets[0]) + "/db." + (item.filename | d(item.name))) }) %}
+{% endif %}
+{{ print.named_conf([ (item | combine(zone_overrides)) ], prefix='zone', quoted_strings_add=bind__var_named_conf_quoted_strings_map['zone']) }}

@@ -2,7 +2,7 @@
 {%   set quoted_strings_list = (bind__var_named_conf_quoted_strings_map['default'] + quoted_strings_add) %}
 {%   if configuration is mapping %}
 {%     for config_key in configuration.keys() | sort %}
-{%       if config_key not in [ 'name', 'class', 'state', 'comment', 'list', 'raw' ] %}
+{%       if config_key not in [ 'name', 'filename', 'class', 'state', 'comment', 'list', 'raw' ] %}
 {%         if configuration[config_key] is string %}
 {%           if configuration[config_key]|d() %}
 {%             if config_key in quoted_strings_list %}
@@ -35,7 +35,9 @@
 {%               else %}
 {{ config_key }} {{ '{' }}
 {%                 for thing in configuration[config_key] %}
+{%                   if thing is string %}
 {{ thing | indent(8, true) }};
+{%                   endif %}
 {%                 endfor %}
 };
 {%               endif %}
@@ -61,9 +63,11 @@
 {%             if output_type == 'category' %}
 {{ "%s %-16s { %s; };" | format(prefix, thing.name + ((' ' + thing.class) if thing.class|d() else ''), (([ thing.list ] if thing.list is string else thing.list) | join('; '))) }}
 {%             else %}
+{%               if thing.name|d() %}
 {{ prefix }} "{{ thing.name }}"{{ (' ' + thing.class) if thing.class|d() else '' }} {{ '{' }}
 {{ named_conf(thing, prefix, quoted_strings_add=quoted_strings_add) | indent(8, true) }}
 };
+{%               endif %}
 {%             endif %}
 {%           endif %}
 {%         elif thing is iterable and thing is not string and thing is not mapping %}
