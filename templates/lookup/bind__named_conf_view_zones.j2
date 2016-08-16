@@ -1,0 +1,38 @@
+{% set bind__tpl_flattened_views = [] %}
+{% macro flatten_views(input) %}
+{%   for element in input %}
+{%     if element is mapping %}
+{%       set _ = bind__tpl_flattened_views.append(element) %}
+{%     elif element is iterable and element is not string and element is not mapping %}
+{%       set _ = flatten_views(element) %}
+{%     endif %}
+{%   endfor %}
+{% endmacro %}
+{% set _ = flatten_views(bind__named_conf_default_views + bind__named_conf_cymru_views + bind__named_conf_views) %}
+{% set output = [] %}
+{% for view in bind__tpl_flattened_views %}
+{%   set output_view = {} %}
+{%   if view.name|d() %}
+{%     set _ = output_view.update({ "__view_name": view.name }) %}
+{%   endif %}
+{%   if view.filename|d() %}
+{%     set _ = output_view.update({ "__view_filename": view.filename }) %}
+{%   endif %}
+{%   if view.state|d() %}
+{%     set _ = output_view.update({ "__view_state": view.state }) %}
+{%   endif %}
+{%   if view.zone_list|d() %}
+{%     for zone in view.zone_list %}
+{%       if zone is mapping %}
+{%         set _ = output.append((output_view | combine(zone))) %}
+{%       elif zone is iterable and zone is not string and zone is not mapping %}
+{%         for thing in zone %}
+{%           set _ = output.append((output_view | combine(thing))) %}
+{%         endfor %}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endfor %}
+{% if output %}
+{{ output | to_nice_yaml }}
+{% endif %}

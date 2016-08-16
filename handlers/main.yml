@@ -1,5 +1,8 @@
 ---
 
+- name: Update BIND includes
+  command: /usr/local/lib/bind-update-includes
+
 - name: Check BIND configuration and reload
   command: named-checkconf
   notify: [ 'Check BIND zones and reload' ]

@@ -8,6 +8,8 @@ bind__type: '{{ "master"
                 if (inventory_hostname == bind__master)
                 else "slave" }}'
 
+bind__views: True
+
 bind__serial: '{{ ansible_date_time.year + ansible_date_time.month +
                   ansible_date_time.day + "00" }}'
 
@@ -171,30 +173,27 @@ bind__tsig_host_keys: []
 bind__config_view_internal_base_zones:
 
   - name: '.'
+    zone_name: 'root'
+    filename: 'root.db'
     type: 'hint'
-    file: '/etc/bind/zones/default/db.root'
 
   - name: 'localhost'
     type: 'master'
-    file: '/etc/bind/zones/default/db.localhost'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '127.in-addr.arpa'
     type: 'master'
-    file: '/etc/bind/zones/default/db.127.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '0.in-addr.arpa'
     type: 'master'
-    file: '/etc/bind/zones/default/db.0.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '255.in-addr.arpa'
     type: 'master'
-    file: '/etc/bind/zones/default/db.255.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
@@ -202,7 +201,6 @@ bind__config_view_internal_default_zones:
 
   - name: 'drybjed1.net'
     type: '{{ bind__type }}'
-    file: '/etc/bind/zones/default/db.drybjed1.net'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
     masters: '{{ ["master-karma"] if bind__type == "slave" else None }}'
@@ -212,8 +210,9 @@ bind__config_view_internal_zones: []
 bind__config_view_external_base_zones:
 
   - name: '.'
+    zone_name: 'root'
+    filename: 'root.db'
     type: 'hint'
-    file: '/etc/bind/zones/default/db.root'
 
 bind__config_view_external_default_zones: []
 
@@ -383,7 +382,7 @@ bind__named_conf_cymru_views:
     recursion: True
     additional-from-auth: True
     additional-from-cache: True
-    zone:
+    zone_list:
       - '{{ bind__config_view_internal_base_zones }}'
       - '{{ bind__config_view_internal_default_zones if bind__type == "master" else [] }}'
       - '{{ bind__config_view_internal_zones }}'
@@ -399,7 +398,7 @@ bind__named_conf_cymru_views:
     recursion: False
     additional-from-auth: False
     additional-from-cache: False
-    zone:
+    zone_list:
       - '{{ bind__config_view_external_base_zones }}'
       - '{{ bind__config_view_external_default_zones if bind__type == "master" else [] }}'
       - '{{ bind__config_view_external_zones }}'
@@ -412,15 +411,16 @@ bind__named_conf_cymru_views:
       - 'This is a good idea from a support point of view.'
     match-clients: [ 'any' ]
     recursion: False
-    zone:
+    zone_list:
 
       - name: '.'
+        zone_name: 'root'
+        filename: 'root.db'
         type: 'hint'
         file: '/dev/null'
 
       - name: 'bind'
         type: 'master'
-        file: '/etc/bind/zones/default/db.bind'
         allow-query: [ 'trusted' ]
         allow-transfer: [ 'none' ]
 
@@ -433,31 +433,27 @@ bind__named_conf_combined_views: '{{ bind__named_conf_default_views
 bind__named_conf_default_zones:
 
   - name: '.'
-    filename: 'root'
+    zone_name: 'root'
+    filename: 'root.db'
     type: 'hint'
-    #file: '/etc/bind/zones/default/db.root'
 
   - name: 'localhost'
     type: 'master'
-    #file: '/etc/bind/zones/default/db.localhost'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '127.in-addr.arpa'
     type: 'master'
-    #file: '/etc/bind/zones/default/db.127.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '0.in-addr.arpa'
     type: 'master'
-    #file: '/etc/bind/zones/default/db.0.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 
   - name: '255.in-addr.arpa'
     type: 'master'
-    #file: '/etc/bind/zones/default/db.255.in-addr.arpa'
     allow-query: [ 'any' ]
     allow-transfer: [ 'none' ]
 

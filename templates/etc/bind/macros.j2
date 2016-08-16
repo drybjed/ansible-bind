@@ -2,7 +2,7 @@
 {%   set quoted_strings_list = (bind__var_named_conf_quoted_strings_map['default'] + quoted_strings_add) %}
 {%   if configuration is mapping %}
 {%     for config_key in configuration.keys() | sort %}
-{%       if config_key not in [ 'name', 'filename', 'class', 'state', 'comment', 'list', 'raw' ] %}
+{%       if config_key not in [ 'name', 'filename', 'class', 'state', 'comment', 'list', 'raw', '__view_name', '__view_filename', '__view_status', 'zone_list', 'zone_name' ] %}
 {%         if configuration[config_key] is string %}
 {%           if configuration[config_key]|d() %}
 {%             if config_key in quoted_strings_list %}
@@ -29,6 +29,10 @@
 {%           if configuration[config_key]|d() %}
 {%             if config_key in bind__var_named_conf_list_of_maps %}
 {{ named_conf(configuration[config_key], prefix=config_key, quoted_strings_add=bind__var_named_conf_quoted_strings_map[config_key]|d([])) -}}
+{%             elif config_key == 'include' %}
+{%               for thing in ([ configuration[config_key] ] if configuration[config_key] is string else configuration[config_key]) %}
+include "{{ thing }}";
+{%               endfor %}
 {%             else %}
 {%               if configuration[config_key] | length <= 2 %}
 {{ config_key }} {{ '{' }} {{ configuration[config_key] | join('; ') }}; {{ '}' }};

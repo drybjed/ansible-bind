@@ -27,6 +27,14 @@
   with_items: [ 'named.conf', 'named.conf.options', 'named.conf.local' ]
   when: ('/etc/bind/' + item + '.dpkg-divert' not in bind__register_diversions.stdout_lines)
 
+- name: Install include update script
+  template:
+    src: 'usr/local/lib/bind-update-includes.j2'
+    dest: '/usr/local/lib/bind-update-includes'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
 - name: Make sure that named.log file exists
   file:
     path: '/var/log/named.log'
@@ -50,12 +58,12 @@
     src: '{{ item.src }}'
     state: 'link'
   with_items:
-    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/db.root',             src: '../../db.root'  }
-    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/db.empty',            src: '../../db.empty' }
-    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/db.localhost',        src: '../../db.local' }
-    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/db.0.in-addr.arpa',   src: '../../db.0'     }
-    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/db.127.in-addr.arpa', src: '../../db.127'   }
-    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/db.255.in-addr.arpa', src: '../../db.255'   }
+    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/root.db',             src: '../../db.root'  }
+    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/empty.db',            src: '../../db.empty' }
+    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/localhost.db',        src: '../../db.local' }
+    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/0.in-addr.arpa.db',   src: '../../db.0'     }
+    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/127.in-addr.arpa.db', src: '../../db.127'   }
+    - { path: '/etc/bind/zones/{{ bind__zone_sets[0] }}/255.in-addr.arpa.db', src: '../../db.255'   }
 
 - name: Generate BIND public configuration files
   template:
@@ -77,19 +85,68 @@
   with_items: [ 'named.conf.keys', 'named.conf.trusted-keys', 'named.conf.managed-keys' ]
   notify: [ 'Check BIND configuration and reload' ]
 
+- name: Remove BIND view configuration files
+  file:
+    path: '/etc/bind/named.conf.d/views/view.{{ item.filename | d(item.name) }}'
+    state: 'absent'
+  with_flattened:
+    - '{{ bind__named_conf_default_views }}'
+    - '{{ bind__named_conf_cymru_views }}'
+    - '{{ bind__named_conf_views }}'
+  when: item.name|d() and item.state|d('present') == 'absent'
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
+
+- name: Generate BIND view configuration files
+  template:
+    src: 'etc/bind/named.conf.d/views/view.j2'
+    dest: '/etc/bind/named.conf.d/views/view.{{ item.filename | d(item.name) }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  with_flattened:
+    - '{{ bind__named_conf_default_views }}'
+    - '{{ bind__named_conf_cymru_views }}'
+    - '{{ bind__named_conf_views }}'
+  when: item.name|d() and item.state|d('present') != 'absent'
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
+
+- name: Remove BIND zone config file in views
+  file:
+    path: '/etc/bind/named.conf.d/views/zones.{{ item.__view_filename | d(item.__view_name) }}/zone.{{ item.zone_name | d(item.name) }}'
+    state: 'absent'
+  with_flattened:
+    - '{{ lookup("template", "lookup/bind__named_conf_view_zones.j2") | from_yaml }}'
+  when: (item.__view_name|d() and (item.__view_state|d('present') == 'absent' or
+         (item.name|d() and item.state|d('present') == 'absent')))
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
+
+- name: Generate BIND zone config files for views
+  template:
+    src: 'etc/bind/named.conf.d/views/zones/zone.j2'
+    dest: '/etc/bind/named.conf.d/views/zones.{{ item.__view_filename | d(item.__view_name) }}/zone.{{ item.zone_name | d(item.name) }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  with_flattened:
+    - '{{ lookup("template", "lookup/bind__named_conf_view_zones.j2") | from_yaml }}'
+  when: item.__view_name|d() and item.__view_state|d('present') != 'absent' and
+        item.name|d() and item.state|d('present') != 'absent'
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
+
 - name: Remove BIND zone config files if requested
   file:
-    path: '/etc/bind/named.conf.d/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/zone.{{ item.filename | d(item.name) }}'
+    path: '/etc/bind/named.conf.d/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/zone.{{ item.zone_name | d(item.name) }}'
     state: 'absent'
   with_flattened:
     - '{{ bind__named_conf_default_zones }}'
     - '{{ bind__named_conf_zones }}'
   when: item.name|d() and item.state|d('present') == 'absent'
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
 
 - name: Generate BIND zone configuration files
   template:
     src: 'etc/bind/named.conf.d/zones/set/zone.j2'
-    dest: '/etc/bind/named.conf.d/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/zone.{{ item.filename | d(item.name) }}'
+    dest: '/etc/bind/named.conf.d/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/zone.{{ item.zone_name | d(item.name) }}'
     owner: 'root'
     group: 'root'
     mode: '0644'
@@ -97,22 +154,23 @@
     - '{{ bind__named_conf_default_zones }}'
     - '{{ bind__named_conf_zones }}'
   when: item.name|d() and item.state|d('present') != 'absent'
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
 
 - name: Remove static DNS zone files if requested
   file:
-    path: '/etc/bind/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/{{ item.filename | d("db." + item.name) }}'
+    path: '/etc/bind/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/{{ item.filename | d(item.name + ".db") }}'
     state: 'absent'
   with_flattened:
     - '{{ bind__dns_default_zones }}'
     - '{{ bind__dns_cymru_zones }}'
     - '{{ bind__dns_zones }}'
   when: item.name|d() and item.state|d('present') == 'absent'
-  notify: [ 'Check BIND zones and reload' ]
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
 
 - name: Generate static DNS zone files
   template:
-    src: 'etc/bind/zones/set/db.zone.j2'
-    dest: '/etc/bind/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/{{ item.filename | d("db." + item.name) }}'
+    src: 'etc/bind/zones/set/zone.db.j2'
+    dest: '/etc/bind/zones/{{ item.zone_set | d(bind__zone_sets[0]) }}/{{ item.filename | d(item.name + ".db") }}'
     owner: 'root'
     group: 'bind'
     mode: '0644'
@@ -122,7 +180,7 @@
     - '{{ bind__dns_zones }}'
   when: item.name|d() and item.state|d('present') != 'absent'
   register: bind__register_zone_files
-  notify: [ 'Check BIND zones and reload' ]
+  notify: [ 'Update BIND includes', 'Check BIND zones and reload' ]
 
 - name: Increment serial in changed static zone files
   script: 'script/bind-increment-serial.sh {{ item.dest }}'

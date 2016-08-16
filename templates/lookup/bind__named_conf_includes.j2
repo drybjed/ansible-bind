@@ -4,6 +4,9 @@
 {%   set _ = output.append(bind__tpl_etc + '/zones/' + element) %}
 {%   set _ = output.append(bind__tpl_etc + '/named.conf.d/zones/' + element) %}
 {% endfor %}
+{% for element in (bind__named_conf_default_views + bind__named_conf_cymru_views + bind__named_conf_views) %}
+{%   set _ = output.append(bind__tpl_etc + '/named.conf.d/views/zones.' + element.name) %}
+{% endfor %}
 {% set _ = output.append(bind__tpl_etc + '/named.conf.d/views') %}
 {% if output %}
 {{ output | to_nice_yaml }}

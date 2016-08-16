@@ -9,7 +9,7 @@ import os
 
 bind_etc_zones_path = '/etc/bind/zones'
 zone_sets = loads('''{{ ([ bind__zone_sets ] if bind__zone_sets is string else bind__zone_sets) | to_nice_json }}''')
-zone_filename_prefix = 'db.'
+zone_filename_suffix = '.db'
 
 output = { 'installed': 'true' }
 
@@ -21,9 +21,9 @@ for zone_set in zone_sets:
 
     if os.path.isdir(bind_etc_zones_path + '/' + zone_set):
         for zone_file in os.listdir(bind_etc_zones_path + '/' + zone_set):
-            if zone_file.startswith(zone_filename_prefix):
+            if zone_file.endswith(zone_filename_suffix):
 
-                zone_name = zone_file[len(zone_filename_prefix):]
+                zone_name = zone_file[:-len(zone_filename_suffix)]
 
                 with open(bind_etc_zones_path + '/' + zone_set + '/' + zone_file) as fd:
                     for line in fd.readlines():

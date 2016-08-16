@@ -1,0 +1,22 @@
+{% import 'macros.j2' as print with context %}
+// {{ ansible_managed }}
+
+// vim:ft=named
+
+{% set view_overrides = {} %}
+{% set combined_includes = [] %}
+{% if not item.zone|d() %}
+{%   set _ = view_overrides.update({ "include": "/etc/bind/named.conf.d/views/zones." + item.name + "/all.conf" }) %}
+{% endif %}
+{% if item.include|d() %}
+{%   for element in ([ item.include ] if item.include is string else item.include) %}
+{%     set _ = combined_includes.append(element) %}
+{%   endfor %}
+{%   if view_overrides.include|d() %}
+{%     set _ = combined_includes.append(view_overrides.include) %}
+{%   endif %}
+{%   if combined_includes %}
+{%     set _ = view_overrides.update({ "include": combined_includes }) %}
+{%   endif %}
+{% endif %}
+{{ print.named_conf([ (item | combine(view_overrides)) ], prefix='view') }}
