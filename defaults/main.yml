@@ -10,6 +10,8 @@ bind__type: '{{ "master"
 
 bind__views: True
 
+bind__view_default_weight: '50'
+
 bind__serial: '{{ ansible_date_time.year + ansible_date_time.month +
                   ansible_date_time.day + "00" }}'
 
@@ -390,6 +392,7 @@ bind__named_conf_cymru_views:
 
   - name: 'external-in'
     class: 'IN'
+    weight: '90'
     comment:
       - 'Our external (untrusted) view. We permit any client to access'
       - 'portions of this view. We do not perform recursion or cache'
@@ -405,6 +408,7 @@ bind__named_conf_cymru_views:
 
   - name: 'external-chaos'
     class: 'CHAOS'
+    weight: '90'
     comment:
       - 'Create a view for all clients perusing the CHAOS class.'
       - 'We allow internal hosts to query our version number.'
@@ -421,7 +425,7 @@ bind__named_conf_cymru_views:
 
       - name: 'bind'
         type: 'master'
-        allow-query: [ 'trusted' ]
+        allow-query: [ '!untrusted', 'trusted' ]
         allow-transfer: [ 'none' ]
 
 bind__named_conf_views: []

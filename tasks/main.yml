@@ -87,7 +87,7 @@
 
 - name: Remove BIND view configuration files
   file:
-    path: '/etc/bind/named.conf.d/views/view.{{ item.filename | d(item.name) }}'
+    path: '/etc/bind/named.conf.d/views/view.{{ item.weight | d(bind__view_default_wieght) + "." + item.filename | d(item.name) }}'
     state: 'absent'
   with_flattened:
     - '{{ bind__named_conf_default_views }}'
@@ -99,7 +99,7 @@
 - name: Generate BIND view configuration files
   template:
     src: 'etc/bind/named.conf.d/views/view.j2'
-    dest: '/etc/bind/named.conf.d/views/view.{{ item.filename | d(item.name) }}'
+    dest: '/etc/bind/named.conf.d/views/view.{{ item.weight | d(bind__view_default_weight) + "." + item.filename | d(item.name) }}'
     owner: 'root'
     group: 'root'
     mode: '0644'
